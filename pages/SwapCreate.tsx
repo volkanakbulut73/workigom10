@@ -32,8 +32,13 @@ export const SwapCreate: React.FC = () => {
         return;
       }
       setSelectedFile(file);
-      const objectUrl = URL.createObjectURL(file);
-      setSelectedImage(objectUrl);
+      
+      // Use FileReader instead of URL.createObjectURL to avoid blob permission issues
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 

@@ -301,6 +301,11 @@ export const DBService = {
 
   getActiveTransaction: async (userId: string): Promise<Transaction | null> => {
     if (isSupabaseConfigured()) {
+        // Fix for 400 Bad Request error if userId is not a UUID (e.g. 'current-user')
+        if (!isUUID(userId)) {
+             return TransactionService.getActive();
+        }
+
         const { data } = await supabase
             .from('transactions')
             .select(`*, seeker:seeker_id(full_name), supporter:supporter_id(full_name)`)
