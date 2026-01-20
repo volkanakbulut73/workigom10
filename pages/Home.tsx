@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Heart, Utensils, ArrowLeftRight, Bell, Gift, Wallet, ChevronRight, Star, Plus } from 'lucide-react';
-import { TransactionService, ReferralService, User, DBService } from '../types';
+import { Bell, Gift, ChevronRight, TrendingUp, PiggyBank, Repeat } from 'lucide-react';
+import { ReferralService, User, DBService } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const Home: React.FC = () => {
@@ -10,6 +10,7 @@ export const Home: React.FC = () => {
   const [user, setUser] = useState<User>(ReferralService.getUserProfile());
   const [greeting, setGreeting] = useState('');
   const [unreadCounts, setUnreadCounts] = useState({ messages: 0, notifications: 0 });
+  const [stats, setStats] = useState({ contribution: 0, savings: 0, count: 0 });
 
   useEffect(() => {
     const fetchRealData = async () => {
@@ -25,6 +26,10 @@ export const Home: React.FC = () => {
            }
            const counts = await DBService.getUnreadCounts(authUser.id);
            setUnreadCounts(counts);
+
+           // Fetch stats
+           const userStats = await DBService.getUserStats(authUser.id);
+           setStats(userStats);
         }
       } catch (e) {
         console.log("Offline or demo mode", e);
@@ -75,30 +80,36 @@ export const Home: React.FC = () => {
 
       <div className="px-6 space-y-6 mt-4 animate-fade-in">
          
-         {/* Wallet Card - Compact & Clean */}
-         <div className="bg-slate-900 text-white rounded-[2rem] p-6 shadow-xl shadow-slate-900/10 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
-            
-            <div className="relative z-10 flex justify-between items-center">
-               <div>
-                  <div className="flex items-center gap-2 mb-1 opacity-80">
-                      <Wallet size={14} />
-                      <span className="text-xs font-bold uppercase tracking-widest">Cüzdanım</span>
-                  </div>
-                  <h2 className="text-3xl font-black tracking-tight">₺{user.wallet.balance.toFixed(2)}</h2>
-               </div>
-               
-               <div className="flex flex-col items-end gap-2">
-                   <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5">
-                      <Star size={12} className="text-yellow-400 fill-yellow-400" />
-                      <span className="text-xs font-bold">{user.rating}</span>
-                   </div>
-                   <div className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10 flex items-center gap-1.5">
-                      <Heart size={12} className="text-pink-400 fill-pink-400" />
-                      <span className="text-xs font-bold">{user.goldenHearts}</span>
-                   </div>
-               </div>
-            </div>
+         {/* Stats Grid - Replaces old Wallet Card */}
+         <div className="grid grid-cols-3 gap-3">
+             
+             {/* Contribution Card */}
+             <div className="bg-white p-3 rounded-2xl shadow-sm border border-emerald-50 flex flex-col items-center justify-center text-center">
+                 <div className="w-8 h-8 rounded-full bg-emerald-50 flex items-center justify-center mb-2">
+                     <TrendingUp size={16} className="text-emerald-500" />
+                 </div>
+                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Katkı Payı</span>
+                 <span className="text-sm font-black text-slate-900 mt-1">₺{stats.contribution.toFixed(0)}</span>
+             </div>
+
+             {/* Savings Card */}
+             <div className="bg-white p-3 rounded-2xl shadow-sm border border-blue-50 flex flex-col items-center justify-center text-center">
+                 <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center mb-2">
+                     <PiggyBank size={16} className="text-blue-500" />
+                 </div>
+                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Tasarruf</span>
+                 <span className="text-sm font-black text-slate-900 mt-1">₺{stats.savings.toFixed(0)}</span>
+             </div>
+
+             {/* Count Card */}
+             <div className="bg-white p-3 rounded-2xl shadow-sm border border-purple-50 flex flex-col items-center justify-center text-center">
+                 <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center mb-2">
+                     <Repeat size={16} className="text-purple-500" />
+                 </div>
+                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">İşlem</span>
+                 <span className="text-sm font-black text-slate-900 mt-1">{stats.count}</span>
+             </div>
+
          </div>
 
          {/* Invite Banner - FOCUS AREA - WITH BACKGROUND IMAGE */}

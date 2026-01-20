@@ -299,6 +299,45 @@ export const DBService = {
     return { messages: 0, notifications: 0 };
   },
 
+  // NEW METHOD: Calculate stats for the Home page
+  getUserStats: async (userId: string) => {
+    if (isSupabaseConfigured() && isUUID(userId)) {
+        try {
+            const { data, error } = await supabase
+                .from('transactions')
+                .select('seeker_id, supporter_id, amount, support_percentage')
+                .eq('status', 'completed')
+                .or(`seeker_id.eq.${userId},supporter_id.eq.${userId}`);
+
+            if (error || !data) return { contribution: 0, savings: 0, count: 0 };
+
+            let contribution = 0;
+            let savings = 0;
+
+            data.forEach((tx: any) => {
+                // Formula: amount * (percentage / 100)
+                const benefit = tx.amount * (tx.support_percentage / 100);
+
+                // If user is supporter -> Contribution
+                if (tx.supporter_id === userId) {
+                    contribution += benefit;
+                } 
+                // If user is seeker -> Savings
+                else if (tx.seeker_id === userId) {
+                    savings += benefit;
+                }
+            });
+
+            return { contribution, savings, count: data.length };
+        } catch (e) {
+            console.error("Stats calculation error:", e);
+            return { contribution: 0, savings: 0, count: 0 };
+        }
+    }
+    // Fallback for demo
+    return { contribution: 0, savings: 0, count: 0 };
+  },
+
   getActiveTransaction: async (userId: string): Promise<Transaction | null> => {
     if (isSupabaseConfigured()) {
         // Fix for 400 Bad Request error if userId is not a UUID (e.g. 'current-user')
