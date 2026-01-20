@@ -1,9 +1,9 @@
-
 import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Camera, Wallet, X } from 'lucide-react';
+import { ChevronLeft, Camera, Wallet, X, Sparkles, Loader2 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { SwapService } from '../types';
+import { generateSwapDescription } from '../services/geminiService';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const SwapCreate: React.FC = () => {
@@ -12,6 +12,7 @@ export const SwapCreate: React.FC = () => {
   const [desc, setDesc] = useState('');
   const [price, setPrice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -41,6 +42,28 @@ export const SwapCreate: React.FC = () => {
     setSelectedImage(null);
     setSelectedFile(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const handleGenerateAI = async () => {
+    if (!title) {
+        alert("AI açıklaması için lütfen önce bir başlık girin.");
+        return;
+    }
+    
+    setIsGenerating(true);
+    try {
+        const generatedText = await generateSwapDescription(
+            title, 
+            price ? parseInt(price) : 0, 
+            selectedFile || undefined
+        );
+        setDesc(generatedText);
+    } catch (e) {
+        console.error(e);
+        alert("Açıklama oluşturulurken bir hata oluştu.");
+    } finally {
+        setIsGenerating(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -157,17 +180,7 @@ export const SwapCreate: React.FC = () => {
                         required
                     />
                 </div>
-    
-                <div className="space-y-1">
-                    <label className="text-xs font-bold text-gray-400 uppercase ml-1">Açıklama</label>
-                    <textarea 
-                        value={desc}
-                        onChange={e => setDesc(e.target.value)}
-                        placeholder="Ürünün durumu hakkında bilgi ver..."
-                        className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm outline-none focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all h-32 resize-none"
-                    />
-                </div>
-    
+
                 <div className="space-y-1">
                     <label className="text-xs font-bold text-gray-400 uppercase ml-1">İstenen Yemek Kartı Bakiyesi (₺)</label>
                     <div className="relative">
@@ -181,6 +194,27 @@ export const SwapCreate: React.FC = () => {
                         />
                         <Wallet size={20} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
                     </div>
+                </div>
+    
+                <div className="space-y-1">
+                    <div className="flex justify-between items-end px-1">
+                        <label className="text-xs font-bold text-gray-400 uppercase">Açıklama</label>
+                        <button 
+                            type="button"
+                            onClick={handleGenerateAI}
+                            disabled={isGenerating}
+                            className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                        >
+                            {isGenerating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            AI ile Yaz
+                        </button>
+                    </div>
+                    <textarea 
+                        value={desc}
+                        onChange={e => setDesc(e.target.value)}
+                        placeholder="Ürünün durumu hakkında bilgi ver..."
+                        className="w-full p-4 bg-gray-50 rounded-xl border border-gray-200 text-sm outline-none focus:bg-white focus:border-slate-900 focus:ring-1 focus:ring-slate-900 transition-all h-32 resize-none leading-relaxed"
+                    />
                 </div>
              </div>
     
