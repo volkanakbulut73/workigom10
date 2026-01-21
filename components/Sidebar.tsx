@@ -56,19 +56,18 @@ export const Sidebar: React.FC = () => {
           <NavItem to="/swap" icon="storefront" label="Market" />
           <NavItem to="/profile" icon="person" label="Profil" />
         </nav>
+
+        {/* Create Request Button */}
+        <button 
+            onClick={() => navigate('/find-share')}
+            className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-primary text-[#020617] font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/10 mt-2 active:scale-95"
+        >
+            <span className="material-symbols-outlined">add_circle</span>
+            Paylaşım Talebi Oluştur
+        </button>
       </div>
 
       <div className="flex flex-col gap-4">
-        {/* Wallet Card */}
-        <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
-          <p className="text-slate-400 text-xs mb-1">Cüzdan Bakiyesi</p>
-          <p className="text-white text-xl font-bold">₺{user.wallet.balance.toFixed(2)}</p>
-          <button onClick={() => navigate('/earnings')} className="mt-3 w-full bg-primary text-[#020617] py-2 rounded-lg text-sm font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2">
-            <span className="material-symbols-outlined text-sm">add_circle</span>
-            Bakiye Yükle
-          </button>
-        </div>
-
         {/* User Profile */}
         <div className="flex items-center gap-3 px-2 py-3 border-t border-slate-800 mt-2 cursor-pointer hover:bg-slate-900/50 rounded-xl transition-colors" onClick={() => navigate('/profile')}>
           <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
