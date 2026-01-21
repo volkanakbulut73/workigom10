@@ -9,7 +9,7 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const FindShare: React.FC = () => {
   const navigate = useNavigate();
-  const [amount, setAmount] = useState<string>('1000');
+  const [amount, setAmount] = useState<string>(''); // Default empty for manual input
   const [description, setDescription] = useState('');
   const [activeTransaction, setActiveTransaction] = useState<Transaction | null>(null);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);

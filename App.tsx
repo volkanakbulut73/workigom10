@@ -114,10 +114,10 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
 
   if (isLoading) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="min-h-screen flex items-center justify-center bg-[#020617]">
             <div className="flex flex-col items-center gap-3">
-                <Loader2 className="animate-spin text-slate-900" size={32} />
-                <p className="text-sm font-bold text-gray-500">Oturum açılıyor...</p>
+                <Loader2 className="animate-spin text-primary" size={32} />
+                <p className="text-sm font-bold text-slate-400">Oturum açılıyor...</p>
             </div>
         </div>
       );
@@ -127,19 +127,19 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       return <Navigate to="/login" replace />;
   }
 
+  // Updated layout classes: removed bg-gray-50, removed max-w containers to allow full fluid layout
   return (
-    <div className="min-h-screen bg-gray-50 font-sans text-gray-900 flex">
+    <div className="flex h-screen overflow-hidden bg-[#020617] text-white">
       <Sidebar />
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <div className="md:hidden">
            <WebNavbar />
         </div>
-        <main className="flex-1 w-full max-w-5xl mx-auto p-0 md:p-6 lg:p-8">
+        <main className="flex-1 w-full">
            {children}
         </main>
         <BottomNav />
       </div>
-      <RightSidebar />
     </div>
   );
 };

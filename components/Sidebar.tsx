@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Heart, ArrowLeftRight, User, LogOut, Plus, Wallet } from 'lucide-react';
 import { ReferralService } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
@@ -10,11 +9,8 @@ export const Sidebar: React.FC = () => {
   const user = ReferralService.getUserProfile();
 
   const handleLogout = async () => {
-    // 1. Önce yerel veriyi temizle ve yönlendir
     ReferralService.logout();
     navigate('/login');
-
-    // 2. Ardından Supabase oturumunu kapatmayı dene
     if (isSupabaseConfigured()) {
       try {
           await supabase.auth.signOut();
@@ -24,57 +20,67 @@ export const Sidebar: React.FC = () => {
     }
   };
 
-  const NavItem = ({ to, icon: Icon, label }: { to: string, icon: any, label: string }) => (
+  const NavItem = ({ to, icon, label }: { to: string, icon: string, label: string }) => (
     <NavLink 
       to={to} 
       className={({ isActive }) => 
-        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group font-medium text-sm
+        `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200
         ${isActive 
-          ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20' 
-          : 'text-gray-500 hover:bg-gray-100 hover:text-slate-900'}`
+          ? 'bg-primary/10 text-primary border border-primary/20' 
+          : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'}`
       }
     >
-      <Icon size={20} />
-      <span>{label}</span>
+      <span className={`material-symbols-outlined ${icon === 'grid_view' ? 'fill-1' : ''}`}>{icon}</span>
+      <span className="text-sm font-semibold">{label}</span>
     </NavLink>
   );
 
   return (
-    <aside className="hidden md:flex flex-col w-64 bg-white border-r border-gray-100 h-screen sticky top-0 z-40 shrink-0">
-      <div className="p-6">
-        <div className="flex items-center gap-2 mb-8 cursor-pointer" onClick={() => navigate('/app')}>
-          <div className="bg-emerald-500 p-2 rounded-lg text-white">
-            <Wallet size={24} />
+    <aside className="hidden md:flex flex-col w-72 bg-[#020617] border-r border-slate-800 justify-between p-6 shrink-0 h-screen sticky top-0">
+      <div className="flex flex-col gap-8">
+        {/* Logo */}
+        <div className="flex items-center gap-3 px-2 cursor-pointer" onClick={() => navigate('/app')}>
+          <div className="bg-primary rounded-xl p-2 flex items-center justify-center">
+            <span className="material-symbols-outlined text-[#020617] font-bold">account_balance_wallet</span>
           </div>
-          <span className="font-bold text-xl text-slate-900">Workigom</span>
+          <div className="flex flex-col">
+            <h1 className="text-white text-xl font-bold leading-tight tracking-tight">Workigom</h1>
+            <p className="text-slate-400 text-xs font-medium">P2P Meal Card Sharing</p>
+          </div>
         </div>
 
-        <nav className="space-y-2">
-          <NavItem to="/app" icon={Home} label="Ana Sayfa" />
-          <NavItem to="/supporters" icon={Heart} label="Paylaşım Talepleri" />
-          <NavItem to="/swap" icon={ArrowLeftRight} label="Takas Pazarı" />
-          <NavItem to="/profile" icon={User} label="Profil" />
+        {/* Navigation */}
+        <nav className="flex flex-col gap-2">
+          <NavItem to="/app" icon="grid_view" label="Ana Sayfa" />
+          <NavItem to="/supporters" icon="handshake" label="Talepler" />
+          <NavItem to="/swap" icon="storefront" label="Market" />
+          <NavItem to="/profile" icon="person" label="Profil" />
         </nav>
       </div>
 
-      <div className="mt-auto p-6 border-t border-gray-50">
-        <button 
-          onClick={() => navigate('/find-share')}
-          className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-3 rounded-xl flex items-center justify-center gap-2 font-bold shadow-lg shadow-emerald-500/20 hover:scale-[1.02] active:scale-95 transition-all mb-4"
-        >
-          <Plus size={18} />
-          <span>İlan Ekle</span>
-        </button>
+      <div className="flex flex-col gap-4">
+        {/* Wallet Card */}
+        <div className="p-4 bg-slate-900 rounded-2xl border border-slate-800">
+          <p className="text-slate-400 text-xs mb-1">Cüzdan Bakiyesi</p>
+          <p className="text-white text-xl font-bold">₺{user.wallet.balance.toFixed(2)}</p>
+          <button onClick={() => navigate('/earnings')} className="mt-3 w-full bg-primary text-[#020617] py-2 rounded-lg text-sm font-bold hover:opacity-90 transition-all flex items-center justify-center gap-2">
+            <span className="material-symbols-outlined text-sm">add_circle</span>
+            Bakiye Yükle
+          </button>
+        </div>
 
-        <div className="flex items-center gap-3 p-2 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => navigate('/profile')}>
-           <img src={user.avatar} alt={user.name} className="w-10 h-10 rounded-full object-cover border border-gray-100" />
-           <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold text-slate-900 truncate">{user.name}</p>
-              <p className="text-xs text-gray-400 truncate">Bakiye: ₺{user.wallet.balance}</p>
-           </div>
-           <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="text-gray-400 hover:text-red-500 transition-colors">
-              <LogOut size={18} />
-           </button>
+        {/* User Profile */}
+        <div className="flex items-center gap-3 px-2 py-3 border-t border-slate-800 mt-2 cursor-pointer hover:bg-slate-900/50 rounded-xl transition-colors" onClick={() => navigate('/profile')}>
+          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 overflow-hidden">
+             <img src={user.avatar} alt={user.name} className="w-full h-full object-cover" />
+          </div>
+          <div className="flex flex-col overflow-hidden flex-1">
+            <p className="text-white text-sm font-bold truncate">{user.name}</p>
+            <p className="text-slate-500 text-xs truncate">Premium Üye</p>
+          </div>
+          <button onClick={(e) => { e.stopPropagation(); handleLogout(); }} className="text-slate-500 hover:text-red-500">
+             <span className="material-symbols-outlined text-sm">logout</span>
+          </button>
         </div>
       </div>
     </aside>
