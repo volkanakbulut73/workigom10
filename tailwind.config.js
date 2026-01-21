@@ -18,14 +18,14 @@ export default {
         "card-dark": "#0f172a", // Slate-900
         "accent-purple": "#7c3aed",
         "accent-blue": "#2563eb",
-        // Keeping legacy colors for compatibility with other pages
+        // Legacy support
         secondary: '#334155', 
         surface: '#f8fafc', 
         dark: '#020617', 
       },
       fontFamily: {
         "display": ["Space Grotesk", "sans-serif"],
-        sans: ['Space Grotesk', 'Inter', 'sans-serif'], // Updated default sans
+        sans: ['Space Grotesk', 'Inter', 'sans-serif'],
       },
       borderRadius: {
         "3xl": "2rem",

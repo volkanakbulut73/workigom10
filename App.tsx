@@ -30,7 +30,7 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
     let mounted = true;
 
     const initializeAuth = async () => {
-      // 1. Önce LocalStorage kontrolü
+      // 1. LocalStorage check
       const localUser = ReferralService.getUserProfile();
       if (localUser.id !== 'current-user') {
           if (mounted) {
@@ -40,13 +40,12 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
           return;
       }
 
-      // 2. Supabase Oturum Kontrolü (Zaman aşımlı)
+      // 2. Supabase Check
       if (isSupabaseConfigured()) {
           const isOAuthRedirect = window.location.hash && window.location.hash.includes('access_token');
           if (isOAuthRedirect) return;
 
           try {
-              // Timeout ekle: Eğer 4 saniyede yanıt gelmezse oturum yok say.
               const sessionPromise = supabase.auth.getSession();
               const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 4000));
 
@@ -127,7 +126,6 @@ const DashboardLayout: React.FC<{ children: React.ReactNode }> = ({ children }) 
       return <Navigate to="/login" replace />;
   }
 
-  // Updated layout classes: removed bg-gray-50, removed max-w containers to allow full fluid layout
   return (
     <div className="flex h-screen overflow-hidden bg-[#020617] text-white">
       <Sidebar />
