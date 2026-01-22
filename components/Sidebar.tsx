@@ -56,15 +56,6 @@ export const Sidebar: React.FC = () => {
           <NavItem to="/swap" icon="storefront" label="Market" />
           <NavItem to="/profile" icon="person" label="Profil" />
         </nav>
-
-        {/* Create Request Button */}
-        <button 
-            onClick={() => navigate('/find-share')}
-            className="flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl bg-primary text-[#020617] font-bold hover:opacity-90 transition-all shadow-lg shadow-primary/10 mt-2 active:scale-95"
-        >
-            <span className="material-symbols-outlined">add_circle</span>
-            Paylaşım Talebi Oluştur
-        </button>
       </div>
 
       <div className="flex flex-col gap-4">

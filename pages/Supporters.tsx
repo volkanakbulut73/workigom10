@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '../components/Button';
 import { Tracker } from '../components/Tracker';
-import { QrCode, X, Crown, Heart, Utensils, ShoppingBag, ChevronLeft, Loader2, CheckCircle2, MessageCircle, ArrowRight, XCircle, Home, UploadCloud, Wallet, Info, Check, MapPin, Clock, Star, ShieldCheck, Lock, Zap, Smartphone } from 'lucide-react';
+import { QrCode, X, Crown, Heart, Utensils, ShoppingBag, ChevronLeft, Loader2, CheckCircle2, MessageCircle, ArrowRight, XCircle, Home, UploadCloud, Wallet, Info, Check, MapPin, Clock, Star, ShieldCheck, Lock, Zap, Smartphone, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { TrackerStep, Transaction, TransactionService, calculateTransaction, DBService, formatName } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
@@ -287,11 +288,20 @@ export const Supporters: React.FC = () => {
   return (
     <div className="pb-24 min-h-screen bg-gray-50 relative">
       <div className="bg-slate-900 text-white pt-10 pb-10 px-5 rounded-b-[1.5rem] md:rounded-3xl shadow-sm relative z-20 md:mb-6">
-         <div className="relative z-30 flex items-center gap-3">
-            <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-colors md:hidden">
-                <ChevronLeft size={16} className="text-white" />
+         <div className="relative z-30 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+                <button onClick={() => navigate(-1)} className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-full hover:bg-white/20 transition-colors md:hidden">
+                    <ChevronLeft size={16} className="text-white" />
+                </button>
+                <h1 className="text-sm font-bold tracking-wide">Paylaşım Talepleri</h1>
+            </div>
+            
+            <button 
+                onClick={() => navigate('/find-share')}
+                className="bg-primary hover:bg-emerald-400 text-[#020617] text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
+            >
+                <Plus size={14} /> Talep Oluştur
             </button>
-            <h1 className="text-sm font-bold tracking-wide">Paylaşım Talepleri</h1>
          </div>
       </div>
 
