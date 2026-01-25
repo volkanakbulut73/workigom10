@@ -314,23 +314,24 @@ export const DBService = {
 
             if (error || !data) return { contribution: 0, savings: 0, count: 0 };
 
-            let contribution = 0;
-            let savings = 0;
+            let contribution = 0; // Kazanılan Katkı Payı (Refund to Supporter)
+            let savings = 0;      // Toplam Tasarruf (Discount for Seeker)
 
             data.forEach((tx: any) => {
-                // Formula: amount * (percentage / 100)
-                const benefit = tx.amount * (tx.support_percentage / 100);
+                // Use the centralized calculation logic to ensure consistency
+                const { seekerSavings, refundToSupporter } = calculateTransaction(tx.amount, tx.support_percentage);
 
-                // If user is supporter -> Contribution
+                // If user is supporter -> Contribution = Net Refund Amount (Cash received)
                 if (tx.supporter_id === userId) {
-                    contribution += benefit;
+                    contribution += refundToSupporter;
                 } 
-                // If user is seeker -> Savings
+                // If user is seeker -> Savings = Discount Amount
                 else if (tx.seeker_id === userId) {
-                    savings += benefit;
+                    savings += seekerSavings;
                 }
             });
 
+            // Count represents total shared spending interactions (completed transactions)
             return { contribution, savings, count: data.length };
         } catch (e) {
             console.error("Stats calculation error:", e);

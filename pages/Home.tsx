@@ -100,7 +100,7 @@ export const Home: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-primary text-xs font-bold bg-primary/10 px-2 py-0.5 rounded-lg">Paylaşarak tasarruf edildi</span>
+              <span className="text-primary text-xs font-bold bg-primary/10 px-2 py-0.5 rounded-lg">Net İndirim Tutarı</span>
             </div>
           </div>
 
@@ -115,7 +115,7 @@ export const Home: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-blue-500 text-xs font-bold bg-blue-500/10 px-2 py-0.5 rounded-lg">Bu ay +4 yeni</span>
+              <span className="text-blue-500 text-xs font-bold bg-blue-500/10 px-2 py-0.5 rounded-lg">Başarılı İşlem</span>
             </div>
           </div>
 
@@ -130,7 +130,7 @@ export const Home: React.FC = () => {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-emerald-400 text-xs font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg">Kart bakiyesi nakite dönüştü</span>
+              <span className="text-emerald-400 text-xs font-bold bg-emerald-500/10 px-2 py-0.5 rounded-lg">Nakit İade Tutarı</span>
             </div>
           </div>
         </div>
