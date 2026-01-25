@@ -1,34 +1,71 @@
 
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ReferralService, User, DBService } from '../types';
+import { ReferralService, User, DBService, calculateTransaction, formatName } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User>(ReferralService.getUserProfile());
   const [stats, setStats] = useState({ contribution: 0, savings: 0, count: 0 });
+  const [activeRequests, setActiveRequests] = useState<any[]>([]);
+  const [loadingRequests, setLoadingRequests] = useState(true);
 
   useEffect(() => {
     const fetchRealData = async () => {
-      if (!isSupabaseConfigured()) return;
+      // 1. Get Current User & Stats
+      if (isSupabaseConfigured()) {
+        try {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser) {
+             const profile = await DBService.getUserProfile(authUser.id);
+             if (profile) {
+                setUser(profile);
+                ReferralService.saveUserProfile(profile);
+             }
+             const userStats = await DBService.getUserStats(authUser.id);
+             setStats(userStats);
+          }
+        } catch (e) {
+          console.log("Offline or demo mode stats", e);
+        }
+      }
 
+      // 2. Get Pending Transactions (Active Requests)
       try {
-        const { data: { user: authUser } } = await supabase.auth.getUser();
-        if (authUser) {
-           const profile = await DBService.getUserProfile(authUser.id);
-           if (profile) {
-              setUser(profile);
-              ReferralService.saveUserProfile(profile);
-           }
-           // Fetch stats
-           const userStats = await DBService.getUserStats(authUser.id);
-           setStats(userStats);
+        const pending = await DBService.getPendingTransactions();
+        
+        // Filter out my own requests
+        const myId = user.id;
+        const othersRequests = pending.filter((tx: any) => tx.seeker_id !== myId);
+        
+        if (othersRequests.length > 0) {
+            setActiveRequests(othersRequests);
+        } else {
+            // Fallback Mock Data if DB is empty or offline, matching the DB structure for UI consistency
+            const mocks = [
+                { 
+                    id: 'mock1', 
+                    amount: 450, 
+                    support_percentage: 20, 
+                    profiles: { full_name: 'Fatih Demir', avatar_url: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&h=100&fit=crop', rating: 5.0 } 
+                },
+                { 
+                    id: 'mock2', 
+                    amount: 1200, 
+                    support_percentage: 20, 
+                    profiles: { full_name: 'Merve Aslan', avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop', rating: 4.9 } 
+                }
+            ];
+            setActiveRequests(mocks);
         }
       } catch (e) {
-        console.log("Offline or demo mode", e);
+        console.error("Error fetching requests:", e);
+      } finally {
+        setLoadingRequests(false);
       }
     };
+
     fetchRealData();
 
     const loadData = () => {
@@ -149,46 +186,61 @@ export const Home: React.FC = () => {
 
             {/* Active Requests Grid - Redesigned Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {[
-                { id: 1, name: 'Fatih d.', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&h=100&fit=crop', amount: 450, refund: 360 },
-                { id: 2, name: 'Merve a.', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop', amount: 1200, refund: 960 }
-              ].map((item) => (
-                <div key={item.id} onClick={() => navigate('/supporters')} className="bg-[#0b1221] p-5 rounded-[2rem] border border-slate-800 hover:border-slate-600 relative overflow-hidden group transition-all cursor-pointer">
-                  
-                  {/* Badge */}
-                  <div className="absolute top-0 right-0 bg-primary px-5 py-1.5 rounded-bl-2xl z-10">
-                    <span className="text-[10px] font-black text-[#020617] tracking-tighter uppercase">%20 İNDİRİMLİ</span>
-                  </div>
+              {activeRequests.map((item) => {
+                 const calc = calculateTransaction(item.amount, item.support_percentage);
+                 // "Kazanılan Katkı Payı" visually usually refers to what the Supporter GETS back (Refund).
+                 // Use refundToSupporter (net)
+                 
+                 return (
+                  <div key={item.id} onClick={() => navigate('/supporters')} className="bg-[#0b1221] p-5 rounded-[2rem] border border-slate-800 hover:border-slate-600 relative overflow-hidden group transition-all cursor-pointer">
+                    
+                    {/* Badge */}
+                    <div className="absolute top-0 right-0 bg-primary px-5 py-1.5 rounded-bl-2xl z-10">
+                      <span className="text-[10px] font-black text-[#020617] tracking-tighter uppercase">%{item.support_percentage} İNDİRİMLİ</span>
+                    </div>
 
-                  {/* Profile Header */}
-                  <div className="flex items-center gap-3 mb-8 mt-2">
-                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700">
-                      <img src={item.avatar} alt={item.name} className="w-full h-full object-cover" />
+                    {/* Profile Header */}
+                    <div className="flex items-center gap-3 mb-8 mt-2">
+                      <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700">
+                        <img 
+                          src={item.profiles?.avatar_url || 'https://picsum.photos/200'} 
+                          alt={item.profiles?.full_name} 
+                          className="w-full h-full object-cover" 
+                        />
+                      </div>
+                      <div>
+                        <h4 className="text-white font-bold text-lg leading-none">
+                            {formatName(item.profiles?.full_name || 'Kullanıcı')}
+                        </h4>
+                        <p className="text-slate-500 text-xs font-medium mt-1">Premium Üye</p>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="text-white font-bold text-lg leading-none">{item.name}</h4>
-                      <p className="text-slate-500 text-xs font-medium mt-1">Premium Üye</p>
-                    </div>
-                  </div>
 
-                  {/* Amounts */}
-                  <div className="flex items-end justify-between mb-8">
-                    <div>
-                      <p className="text-white text-xs font-bold mb-1">Menü Tutarı</p>
-                      <p className="text-3xl font-black text-white tracking-tight">₺{item.amount.toFixed(2)}</p>
+                    {/* Amounts */}
+                    <div className="flex items-end justify-between mb-8">
+                      <div>
+                        <p className="text-white text-xs font-bold mb-1">Menü Tutarı</p>
+                        <p className="text-3xl font-black text-white tracking-tight">₺{item.amount.toLocaleString()}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-red-500 text-xs font-bold mb-1">Kazanılan Katkı Payı</p>
+                        <p className="text-3xl font-black text-primary tracking-tight">₺{calc.refundToSupporter.toLocaleString()}</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-red-500 text-xs font-bold mb-1">Kazanılan Katkı Payı</p>
-                      <p className="text-3xl font-black text-primary tracking-tight">₺{item.refund.toFixed(2)}</p>
-                    </div>
-                  </div>
 
-                  {/* Button */}
-                  <button className="w-full py-3.5 bg-[#1e293b] hover:bg-primary hover:text-[#020617] text-white rounded-2xl font-bold text-sm transition-all duration-300 shadow-lg shadow-black/20">
-                    Teklif Ver
-                  </button>
-                </div>
-              ))}
+                    {/* Button */}
+                    <button className="w-full py-3.5 bg-[#1e293b] hover:bg-primary hover:text-[#020617] text-white rounded-2xl font-bold text-sm transition-all duration-300 shadow-lg shadow-black/20">
+                      Teklif Ver
+                    </button>
+                  </div>
+                 );
+              })}
+              
+              {activeRequests.length === 0 && !loadingRequests && (
+                  <div className="col-span-full bg-slate-900/50 p-8 rounded-3xl text-center border border-slate-800 border-dashed">
+                      <p className="text-slate-400">Şu an aktif talep bulunmuyor.</p>
+                  </div>
+              )}
             </div>
 
             {/* Live Feed */}
