@@ -354,20 +354,6 @@ export const Profile: React.FC = () => {
                          )}
                      </div>
                  </div>
-
-                 {/* Account Type */}
-                 <div className="space-y-2">
-                     <label className="text-xs font-bold text-slate-500 uppercase ml-1">Hesap Türü</label>
-                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                                <Award size={12} className="text-[#020617]" />
-                            </div>
-                            <span className="text-white font-bold">Yıllık Premium</span>
-                         </div>
-                         <button className="text-primary text-xs font-bold hover:underline">Yönet</button>
-                     </div>
-                 </div>
              </div>
           </div>
       </div>
