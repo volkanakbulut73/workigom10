@@ -147,69 +147,48 @@ export const Home: React.FC = () => {
               <button onClick={() => navigate('/supporters')} className="text-primary text-sm font-bold hover:underline">Tümünü Gör</button>
             </div>
 
-            {/* Active Requests Grid (Mock Data for UI Match) */}
+            {/* Active Requests Grid - Redesigned Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Card 1 */}
-              <div className="glass p-5 rounded-3xl border border-slate-800 hover:border-slate-600 transition-all cursor-pointer group relative overflow-hidden" onClick={() => navigate('/supporters')}>
-                <div className="absolute top-0 right-0 bg-primary px-3 py-1 rounded-bl-2xl text-[10px] font-black text-background-dark tracking-tighter uppercase">
-                  %20 İndirimli
-                </div>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center font-bold text-primary overflow-hidden border border-slate-700">
-                        <span className="text-xs">SOD</span>
-                    </div>
-                    <div>
-                      <h4 className="text-white font-bold">Sodexo Bakiyesi</h4>
-                      <p className="text-slate-400 text-xs">Satıcı: @merve_t</p>
-                    </div>
+              {[
+                { id: 1, name: 'Fatih d.', avatar: 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=100&h=100&fit=crop', amount: 450, refund: 360 },
+                { id: 2, name: 'Merve a.', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop', amount: 1200, refund: 960 }
+              ].map((item) => (
+                <div key={item.id} onClick={() => navigate('/supporters')} className="bg-[#0b1221] p-5 rounded-[2rem] border border-slate-800 hover:border-slate-600 relative overflow-hidden group transition-all cursor-pointer">
+                  
+                  {/* Badge */}
+                  <div className="absolute top-0 right-0 bg-primary px-5 py-1.5 rounded-bl-2xl z-10">
+                    <span className="text-[10px] font-black text-[#020617] tracking-tighter uppercase">%20 İNDİRİMLİ</span>
                   </div>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-slate-500 text-xs font-medium">Bakiye</p>
-                    <p className="text-xl font-bold text-white">₺450.00</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-slate-500 text-xs font-medium">İstenen Nakit</p>
-                    <p className="text-xl font-bold text-primary">₺360.00</p>
-                  </div>
-                </div>
-                <button className="w-full mt-4 py-2.5 bg-slate-800 group-hover:bg-primary group-hover:text-background-dark text-white rounded-xl text-sm font-bold transition-all">
-                  Teklif Ver
-                </button>
-              </div>
 
-              {/* Card 2 */}
-              <div className="glass p-5 rounded-3xl border border-slate-800 hover:border-slate-600 transition-all cursor-pointer group relative overflow-hidden" onClick={() => navigate('/supporters')}>
-                <div className="absolute top-0 right-0 bg-primary px-3 py-1 rounded-bl-2xl text-[10px] font-black text-background-dark tracking-tighter uppercase">
-                  %15 İndirimli
-                </div>
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-800 flex items-center justify-center font-bold text-blue-400 overflow-hidden border border-slate-700">
-                      <span className="text-xs">MUL</span>
+                  {/* Profile Header */}
+                  <div className="flex items-center gap-3 mb-8 mt-2">
+                    <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-slate-700">
+                      <img src={item.avatar} alt={item.name} className="w-full h-full object-cover" />
                     </div>
                     <div>
-                      <h4 className="text-white font-bold">Multinet Bakiyesi</h4>
-                      <p className="text-slate-400 text-xs">Satıcı: @can_y</p>
+                      <h4 className="text-white font-bold text-lg leading-none">{item.name}</h4>
+                      <p className="text-slate-500 text-xs font-medium mt-1">Premium Üye</p>
                     </div>
                   </div>
-                </div>
-                <div className="flex items-end justify-between">
-                  <div>
-                    <p className="text-slate-500 text-xs font-medium">Bakiye</p>
-                    <p className="text-xl font-bold text-white">₺1,200.00</p>
+
+                  {/* Amounts */}
+                  <div className="flex items-end justify-between mb-8">
+                    <div>
+                      <p className="text-white text-xs font-bold mb-1">Menü Tutarı</p>
+                      <p className="text-3xl font-black text-white tracking-tight">₺{item.amount.toFixed(2)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-red-500 text-xs font-bold mb-1">Kazanılan Katkı Payı</p>
+                      <p className="text-3xl font-black text-primary tracking-tight">₺{item.refund.toFixed(2)}</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-slate-500 text-xs font-medium">İstenen Nakit</p>
-                    <p className="text-xl font-bold text-primary">₺1,020.00</p>
-                  </div>
+
+                  {/* Button */}
+                  <button className="w-full py-3.5 bg-[#1e293b] hover:bg-primary hover:text-[#020617] text-white rounded-2xl font-bold text-sm transition-all duration-300 shadow-lg shadow-black/20">
+                    Teklif Ver
+                  </button>
                 </div>
-                <button className="w-full mt-4 py-2.5 bg-slate-800 group-hover:bg-primary group-hover:text-background-dark text-white rounded-xl text-sm font-bold transition-all">
-                  Teklif Ver
-                </button>
-              </div>
+              ))}
             </div>
 
             {/* Live Feed */}
