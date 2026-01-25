@@ -50,6 +50,7 @@ export interface User {
   silverHearts: number;
   isAvailable: boolean;
   referralCode: string;
+  iban?: string; // Added IBAN field
   wallet: {
     balance: number;
     totalEarnings: number;
@@ -199,6 +200,7 @@ const DEFAULT_USER: User = {
   silverHearts: 0,
   isAvailable: true,
   referralCode: 'GUEST',
+  iban: '',
   wallet: {
     balance: 0,
     totalEarnings: 0,
@@ -281,6 +283,7 @@ export const DBService = {
                  silverHearts: 0,
                  isAvailable: true,
                  referralCode: 'REF',
+                 iban: data.iban || '', // Map IBAN from DB
                  wallet: {
                    balance: data.wallet_balance || 0,
                    totalEarnings: 0,
@@ -510,6 +513,7 @@ export const DBService = {
     if (isSupabaseConfigured()) {
         const updates: any = {};
         if (data.name) updates.full_name = data.name;
+        if (data.iban !== undefined) updates.iban = data.iban;
         await supabase.from('profiles').update(updates).eq('id', id);
     }
     const current = ReferralService.getUserProfile();

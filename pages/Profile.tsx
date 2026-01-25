@@ -17,6 +17,7 @@ export const Profile: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(user.name);
   const [editLocation, setEditLocation] = useState(user.location);
+  const [editIban, setEditIban] = useState(user.iban || '');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewAvatar, setPreviewAvatar] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -46,11 +47,13 @@ export const Profile: React.FC = () => {
         setIsEditing(false);
         setEditName(user.name);
         setEditLocation(user.location);
+        setEditIban(user.iban || '');
         setPreviewAvatar(null);
         setSelectedFile(null);
     } else {
         setEditName(user.name);
         setEditLocation(user.location);
+        setEditIban(user.iban || '');
         setIsEditing(true);
     }
   };
@@ -81,6 +84,7 @@ export const Profile: React.FC = () => {
         await DBService.updateUserProfile(user.id, {
             name: editName,
             location: editLocation,
+            iban: editIban,
             avatar: avatarUrl
         });
 
@@ -330,6 +334,24 @@ export const Profile: React.FC = () => {
                      <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3 overflow-hidden">
                          <Mail size={18} className="text-slate-500 shrink-0" />
                          <span className="text-white font-medium truncate">m.aslan@workigom.com</span>
+                     </div>
+                 </div>
+
+                 {/* IBAN Field - Added */}
+                 <div className="space-y-2">
+                     <label className="text-xs font-bold text-slate-500 uppercase ml-1">IBAN Bilgisi</label>
+                     <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 flex items-center gap-3 overflow-hidden">
+                         <CreditCard size={18} className="text-slate-500 shrink-0" />
+                         {isEditing ? (
+                             <input 
+                                value={editIban}
+                                onChange={(e) => setEditIban(e.target.value)}
+                                placeholder="TR..."
+                                className="bg-transparent text-white font-medium outline-none w-full placeholder:text-slate-600"
+                             />
+                         ) : (
+                             <span className="text-white font-medium truncate">{user.iban || 'IBAN Eklenmemiş'}</span>
+                         )}
                      </div>
                  </div>
 
