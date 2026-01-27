@@ -16,7 +16,7 @@ export const FindShare: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  // Initial Load and Realtime Subscription
+  // 1. Initial Load: Only runs once to fetch active state
   useEffect(() => {
     const init = async () => {
         let userId = 'current-user';
@@ -25,90 +25,77 @@ export const FindShare: React.FC = () => {
             if (user) userId = user.id;
         }
 
-        // Fetch initial state
         const initialTx = await DBService.getActiveTransaction(userId);
-        setActiveTransaction(initialTx);
-        
-        // Setup Supabase Realtime Subscription if we have a transaction
-        if (initialTx && isSupabaseConfigured()) {
-            const channel = supabase.channel(`tx_${initialTx.id}`)
-                .on('postgres_changes', { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
-                    table: 'transactions',
-                    filter: `id=eq.${initialTx.id}`
-                }, (payload) => {
-                    // Map new payload to Transaction interface
-                    const newData = payload.new;
-                    const updatedTx: Transaction = {
-                        ...initialTx,
-                        status: newData.status,
-                        supporterId: newData.supporter_id,
-                        supportPercentage: newData.support_percentage,
-                        qrUrl: newData.qr_url,
-                        qrUploadedAt: newData.qr_uploaded_at,
-                        completedAt: newData.completed_at,
-                        // Update calculated amounts if needed
-                        amounts: calculateTransaction(newData.amount, newData.support_percentage)
-                    };
-                    
-                    // We might need to fetch profile name if supporter joined
-                    if (newData.supporter_id && !initialTx.supporterId) {
-                         DBService.getUserProfile(newData.supporter_id).then(profile => {
-                             if(profile) updatedTx.supporterName = formatName(profile.name);
-                             setActiveTransaction(updatedTx);
-                         });
-                    } else {
-                        setActiveTransaction(updatedTx);
-                    }
-                })
-                .subscribe();
-
-            return () => { supabase.removeChannel(channel); };
-        }
+        if (initialTx) setActiveTransaction(initialTx);
     };
     init();
-  }, [activeTransaction?.id]); // Re-subscribe if ID changes (e.g. new creation)
+  }, []);
 
-  // Polling Mechanism to ensure status updates (Fixes 'not moving to cash payment' issue)
+  // 2. Realtime Subscription: Only runs when we have an active transaction ID
   useEffect(() => {
-    if (!activeTransaction || 
-        activeTransaction.status === TrackerStep.COMPLETED || 
-        activeTransaction.status === TrackerStep.FAILED || 
-        activeTransaction.status === TrackerStep.CANCELLED ||
-        activeTransaction.status === TrackerStep.DISMISSED) return;
+    if (!activeTransaction?.id || !isSupabaseConfigured()) return;
 
-    const interval = setInterval(async () => {
+    // Check transaction status periodically as a fallback
+    const pollingInterval = setInterval(async () => {
         let userId = 'current-user';
-        if (isSupabaseConfigured()) {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) userId = user.id;
-        } else {
-            // Local mock check
-            const stored = TransactionService.getActive();
-            if (stored && stored.id === activeTransaction.id && stored.status !== activeTransaction.status) {
-                setActiveTransaction(stored);
-            }
-            return;
-        }
-        
-        // DB check
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) userId = user.id;
+
         const freshTx = await DBService.getActiveTransaction(userId);
-        if (freshTx) {
-             const statusChanged = freshTx.status !== activeTransaction.status;
-             const supporterChanged = freshTx.supporterId !== activeTransaction.supporterId;
-             
-             if (statusChanged || supporterChanged) {
-                 setActiveTransaction(freshTx);
-             }
+        if (freshTx && (freshTx.status !== activeTransaction.status || freshTx.supporterId !== activeTransaction.supporterId)) {
+            setActiveTransaction(freshTx);
         }
-    }, 3000); // Check every 3 seconds
+    }, 4000);
 
-    return () => clearInterval(interval);
-  }, [activeTransaction]);
+    // Supabase Realtime Subscription
+    const channel = supabase.channel(`tx_${activeTransaction.id}`)
+        .on('postgres_changes', { 
+            event: 'UPDATE', 
+            schema: 'public', 
+            table: 'transactions',
+            filter: `id=eq.${activeTransaction.id}`
+        }, (payload) => {
+            const newData = payload.new;
+            
+            // Construct updated transaction safely
+            const updatedTx: Transaction = {
+                id: newData.id,
+                seekerId: newData.seeker_id,
+                supporterId: newData.supporter_id,
+                amount: newData.amount,
+                listingTitle: newData.listing_title,
+                status: newData.status,
+                supportPercentage: newData.support_percentage,
+                qrUrl: newData.qr_url,
+                qrUploadedAt: newData.qr_uploaded_at,
+                completedAt: newData.completed_at,
+                // Preserve existing names unless we refetch, update calculations
+                seekerName: activeTransaction.seekerName, 
+                supporterName: activeTransaction.supporterName,
+                createdAt: newData.created_at,
+                amounts: calculateTransaction(newData.amount, newData.support_percentage)
+            };
+            
+            // If supporter joined, we might want to fetch their name
+            if (newData.supporter_id && !activeTransaction.supporterId) {
+                    DBService.getUserProfile(newData.supporter_id).then(profile => {
+                        if(profile) updatedTx.supporterName = formatName(profile.name);
+                        setActiveTransaction(updatedTx);
+                    });
+            } else {
+                setActiveTransaction(updatedTx);
+            }
+        })
+        .subscribe();
+
+    return () => { 
+        clearInterval(pollingInterval);
+        supabase.removeChannel(channel); 
+    };
+  }, [activeTransaction?.id]);
 
 
-  // Timer logic for QR validity (Mock)
+  // Timer logic for QR validity
   useEffect(() => {
       if (activeTransaction?.status === TrackerStep.QR_UPLOADED && activeTransaction.qrUploadedAt) {
           const startTime = new Date(activeTransaction.qrUploadedAt).getTime();
@@ -155,14 +142,15 @@ export const FindShare: React.FC = () => {
 
       const newTxData = await DBService.createTransactionRequest(userId, val, description);
 
-      // Local state update for immediate feedback
+      // Immediately set local state with correct mapping so UI updates instantly
+      // DBService.createTransactionRequest returns Supabase row (snake_case)
       const localTx: Transaction = {
           id: newTxData.id,
-          seekerId: userId,
-          amount: val,
-          listingTitle: description,
-          status: TrackerStep.WAITING_SUPPORTER,
-          supportPercentage: 20,
+          seekerId: newTxData.seeker_id || userId,
+          amount: newTxData.amount || val,
+          listingTitle: newTxData.listing_title || description,
+          status: newTxData.status || TrackerStep.WAITING_SUPPORTER,
+          supportPercentage: newTxData.support_percentage || 20,
           amounts: calculateTransaction(val, 20),
           createdAt: new Date().toISOString(),
           seekerName: 'Ben'
@@ -172,9 +160,9 @@ export const FindShare: React.FC = () => {
       setActiveTransaction(localTx);
       setDescription('');
       
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Talep oluşturulurken bir hata oluştu.");
+      alert("Talep oluşturulurken bir hata oluştu: " + (error.message || "Bilinmeyen hata"));
     } finally {
       setCreating(false);
     }
@@ -236,17 +224,13 @@ export const FindShare: React.FC = () => {
     setLoading(true);
     try {
         if (isSupabaseConfigured()) {
-            // Await the cancellation. If it fails (e.g. 400 error), we catch it below.
             await DBService.cancelTransaction(activeTransaction.id);
         }
-        
-        // Only clear and navigate if successful
         setActiveTransaction(null);
         TransactionService.clearActive();
-        navigate('/app'); // Fixed: Redirect to App Home instead of Landing Page
+        navigate('/app'); 
     } catch (e: any) {
         console.error("Cancel failed", e);
-        // Show error message and stay on the page
         alert("İşlem iptal edilirken bir hata oluştu: " + (e.message || "Bilinmeyen Hata"));
     } finally {
         setLoading(false);
@@ -254,20 +238,16 @@ export const FindShare: React.FC = () => {
   };
 
   const handleClearActive = async () => {
-    // This is used for Dismissing (Success/Fail screens)
-    // If it was completed/cancelled/failed, we should dismiss it so it doesn't show up again
     if (activeTransaction && isSupabaseConfigured()) {
         try {
             await DBService.dismissTransaction(activeTransaction.id);
         } catch (e) {
             console.error("Dismiss failed", e);
-            // We continue to clear locally even if DB fails for dismiss, 
-            // as the transaction is likely already in a final state.
         }
     }
      TransactionService.clearActive();
      setActiveTransaction(null);
-     navigate('/app'); // Fixed: Redirect to App Home instead of Landing Page
+     navigate('/app'); 
   };
 
   if (activeTransaction) {

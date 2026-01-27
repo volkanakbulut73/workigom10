@@ -383,7 +383,8 @@ export const DBService = {
 
   createTransactionRequest: async (userId: string, amount: number, description: string) => {
      if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        const { data, error } = await withTimeout(
+            supabase
             .from('transactions')
             .insert({
                 seeker_id: userId,
@@ -393,7 +394,9 @@ export const DBService = {
                 support_percentage: 20 
             })
             .select()
-            .single();
+            .single(),
+            10000 // 10s timeout
+        ) as any;
             
         if (error) throw error;
         return data;
