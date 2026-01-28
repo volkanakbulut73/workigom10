@@ -43,6 +43,7 @@ export const Supporters: React.FC = () => {
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [qrUploading, setQrUploading] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -52,9 +53,12 @@ export const Supporters: React.FC = () => {
     fetchData();
     const interval = setInterval(fetchData, 8000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [isCanceling]); // Dependency added to re-evaluate closure if needed, though mostly used inside
 
   const fetchData = async () => {
+    // If we are currently cancelling a transaction, do not fetch to prevent race conditions showing the old transaction
+    if (isCanceling) return;
+
     if (!isSupabaseConfigured()) {
        setListings(currentListings => {
            if (currentListings.length === 0) {
@@ -122,8 +126,11 @@ export const Supporters: React.FC = () => {
                    setActiveTransaction(null); // Clear supporter view
                }
            } else {
-              setActiveTransaction(null);
-              setHasActiveRequest(false);
+              // Only clear if we are not processing a new one locally
+              if (!isProcessing) {
+                  setActiveTransaction(null);
+                  setHasActiveRequest(false);
+              }
            }
         }
     } catch (e) {
@@ -156,7 +163,7 @@ export const Supporters: React.FC = () => {
     const percentage = selectedPercentage;
     const calc = calculateTransaction(selectedListing.amount, percentage);
     
-    // Mock local object for immediate UI response
+    // Mock local object for immediate UI response (Optimistic)
     const mockTx: Transaction = {
           id: `tx-${Date.now()}`,
           seekerId: 'seeker-uuid',
@@ -205,8 +212,11 @@ export const Supporters: React.FC = () => {
           amounts: calculateTransaction(updatedTx.amount, updatedTx.support_percentage)
         };
 
+        // SAVE LOCALLY TO PREVENT TRACKER DISAPPEARANCE ON REFRESH
+        TransactionService.save(realTx);
         setActiveTransaction(realTx);
         setActiveTab('my-support');
+        
         setListings(prev => prev.filter(l => l.id !== selectedListing.id));
         setShowSelectionModal(false);
         setSelectedListing(null);
@@ -254,9 +264,11 @@ export const Supporters: React.FC = () => {
     if (!activeTransaction) return;
     if (!window.confirm("İşlemden desteğinizi çekmek istediğinize emin misiniz?")) return;
     
+    setIsCanceling(true);
     const txId = activeTransaction.id;
     const previousTx = activeTransaction; 
 
+    // Optimistic Update
     TransactionService.clearActive();
     setActiveTransaction(null);
 
@@ -266,9 +278,13 @@ export const Supporters: React.FC = () => {
         }
     } catch (e: any) {
         console.error("Background cancel failed", e);
+        // Revert on failure
         setActiveTransaction(previousTx);
         TransactionService.save(previousTx);
-        alert("İşlem iptal edilemedi.");
+        alert("İşlem iptal edilemedi, lütfen tekrar deneyin.");
+    } finally {
+        // Keep cancelling state briefly to allow DB to update before next fetch check
+        setTimeout(() => setIsCanceling(false), 2000);
     }
   };
 
@@ -571,9 +587,16 @@ export const Supporters: React.FC = () => {
                             <div className="mt-4 pt-2 border-t border-gray-50 text-center">
                                 <button 
                                     onClick={handleCancelTransaction}
-                                    className="text-red-300 text-[10px] font-bold py-1 px-3 rounded-full hover:bg-red-50 hover:text-red-500 transition-colors"
+                                    disabled={isCanceling}
+                                    className="text-red-300 text-[10px] font-bold py-2 px-4 rounded-full hover:bg-red-50 hover:text-red-500 transition-colors flex items-center justify-center gap-2 mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
-                                    İşlemi İptal Et
+                                    {isCanceling ? (
+                                        <>
+                                            <Loader2 size={10} className="animate-spin" /> İptal Ediliyor...
+                                        </>
+                                    ) : (
+                                        'İşlemi İptal Et'
+                                    )}
                                 </button>
                             </div>
                         </div>
