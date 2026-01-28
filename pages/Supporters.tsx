@@ -33,6 +33,9 @@ export const Supporters: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [activeTransaction, setActiveTransaction] = useState<Transaction | null>(null);
   
+  // Banner state for seekers
+  const [hasActiveRequest, setHasActiveRequest] = useState(false);
+
   // Modal States
   const [selectedListing, setSelectedListing] = useState<UIListing | null>(null);
   const [showSelectionModal, setShowSelectionModal] = useState(false);
@@ -47,7 +50,7 @@ export const Supporters: React.FC = () => {
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 5000); 
+    const interval = setInterval(fetchData, 8000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -73,50 +76,71 @@ export const Supporters: React.FC = () => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
         
-        // Use the updated service method that fetches from 'transactions' table
+        // Use the updated service method that handles timeouts/fallbacks
         const pendingData = await DBService.getPendingTransactions();
         
         const filteredData = user 
             ? pendingData.filter((item: any) => item.seeker_id !== user.id)
             : pendingData;
         
-        const mappedListings: UIListing[] = filteredData.map((item: any) => ({
-              id: item.id,
-              name: formatName(item.profiles?.full_name),
-              amount: item.amount,
-              location: item.profiles?.location || 'Konum Yok', // If profile doesn't have location
-              time: 'Az önce',
-              rating: item.profiles?.rating || 5.0,
-              avatar: item.profiles?.avatar_url || 'https://picsum.photos/100/100',
-              description: item.listing_title || 'Açıklama yok',
-              type: 'food' 
-        }));
+        const mappedListings: UIListing[] = filteredData.map((item: any) => {
+              // Robust mapping to handle missing or array-wrapped profiles
+              let profile = item.profiles;
+              if (Array.isArray(profile)) profile = profile[0];
+
+              return {
+                  id: item.id,
+                  name: formatName(profile?.full_name || 'Anonim'),
+                  amount: item.amount,
+                  location: profile?.location || 'İstanbul',
+                  time: 'Az önce',
+                  rating: profile?.rating || 5.0,
+                  avatar: profile?.avatar_url || 'https://picsum.photos/200',
+                  description: item.listing_title || 'Paylaşım Talebi',
+                  type: 'food' 
+              };
+        });
         setListings(mappedListings);
 
         if (user) {
            // Includes completed transactions unless dismissed
            const activeTx = await DBService.getActiveTransaction(user.id);
            
-           if (activeTx && activeTx.supporterId === user.id) {
-               setActiveTransaction(activeTx);
-              
-              if (activeTab === 'all' && activeTx.status !== TrackerStep.DISMISSED && activeTx.status !== TrackerStep.CANCELLED) {
-                  setActiveTab('my-support');
-              }
+           if (activeTx) {
+               if (activeTx.supporterId === user.id) {
+                   // I am the supporter
+                   setActiveTransaction(activeTx);
+                   if (activeTab === 'all' && activeTx.status !== TrackerStep.DISMISSED && activeTx.status !== TrackerStep.CANCELLED) {
+                       setActiveTab('my-support');
+                   }
+                   setHasActiveRequest(false);
+               } else if (activeTx.seekerId === user.id) {
+                   // I am the seeker (I made a request)
+                   // I should not see my request in the list (handled by filteredData)
+                   // I should see a banner reminding me I have an active request
+                   setHasActiveRequest(true);
+                   setActiveTransaction(null); // Clear supporter view
+               }
            } else {
               setActiveTransaction(null);
+              setHasActiveRequest(false);
            }
         }
     } catch (e) {
-        console.error("Fetch error", e);
+        console.error("Supporters fetch error", e);
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleSupportClick = (e: React.MouseEvent, listing: UIListing) => {
     e.stopPropagation();
+    if (hasActiveRequest) {
+        alert("Zaten aktif bir talebiniz var. Önce onu tamamlamalısınız.");
+        return;
+    }
     if (activeTransaction && activeTransaction.status !== TrackerStep.COMPLETED && activeTransaction.status !== TrackerStep.DISMISSED && activeTransaction.status !== TrackerStep.CANCELLED && activeTransaction.status !== TrackerStep.FAILED) {
-      alert("Devam eden bir işleminiz var.");
+      alert("Devam eden bir destek işleminiz var.");
       setActiveTab('my-support');
       return;
     }
@@ -306,6 +330,28 @@ export const Supporters: React.FC = () => {
       </div>
 
       <div className="px-4 -mt-6 md:mt-0 relative z-20 space-y-4">
+        
+        {/* Banner for active request (Seeker view) */}
+        {hasActiveRequest && activeTab === 'all' && (
+            <div 
+                onClick={() => navigate('/find-share')}
+                className="bg-blue-600 text-white p-4 rounded-2xl shadow-lg shadow-blue-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform animate-fade-in"
+            >
+                <div className="flex items-center gap-3">
+                    <div className="bg-white/20 p-2 rounded-full">
+                        <Utensils size={18} />
+                    </div>
+                    <div>
+                        <p className="font-bold text-sm">Aktif Talebiniz Var</p>
+                        <p className="text-[10px] text-blue-100 opacity-90">Kendi talebiniz bu listede görünmez.</p>
+                    </div>
+                </div>
+                <div className="bg-white text-blue-600 text-[10px] font-bold px-3 py-1.5 rounded-lg">
+                    Görüntüle
+                </div>
+            </div>
+        )}
+
         <div className="bg-white p-1 rounded-xl flex gap-1 border border-gray-200 shadow-sm max-w-sm mx-auto md:mx-0">
             <button onClick={() => setActiveTab('all')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'all' ? 'bg-slate-800 text-white shadow-sm' : 'text-gray-500 hover:bg-gray-50'}`}>
               Paylaşım Bekleyenler
