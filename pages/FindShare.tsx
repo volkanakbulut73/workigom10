@@ -171,19 +171,25 @@ export const FindShare: React.FC = () => {
   const handleCashPaid = async () => {
     if (!activeTransaction) return;
     
+    setLoading(true);
+
     try {
-        setLoading(true);
         if (isSupabaseConfigured()) {
+            // Attempt DB update with timeout (handled in types.ts now)
             await DBService.markCashPaid(activeTransaction.id);
         }
-        // Optimistic update
+        
+        // Optimistic update - this forces the UI to change state immediately
+        // removing the button that caused the loading spinner
         const updated = { ...activeTransaction, status: TrackerStep.CASH_PAID };
         setActiveTransaction(updated);
+        
+        // Safety cleanup, though component view likely changes
+        setLoading(false);
     } catch (e) {
         console.error("Cash Paid Update Error:", e);
-        alert("Durum güncellenirken bir hata oluştu.");
-    } finally {
         setLoading(false);
+        alert("Durum güncellenirken bir sorun oluştu. Lütfen bağlantınızı kontrol edip tekrar deneyin.");
     }
   };
 

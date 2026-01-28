@@ -436,7 +436,12 @@ export const DBService = {
 
   markCashPaid: async (txId: string) => {
       if (isSupabaseConfigured() && isUUID(txId)) {
-          const { error } = await supabase.from('transactions').update({ status: 'cash-paid' }).eq('id', txId);
+          // Wrapped in timeout to prevent hanging indefinitely
+          const { error } = await withTimeout(
+              supabase.from('transactions').update({ status: 'cash-paid' }).eq('id', txId),
+              8000
+          ) as any;
+          
           if (error) throw error;
       }
   },
@@ -551,133 +556,161 @@ export const DBService = {
   sendChannelMessage: async (channelId: string, content: string) => { return {}; }
 };
 
-// --- Swap Service ---
-
 export const SwapService = {
-
   getListings: async (): Promise<SwapListing[]> => {
-    if (!isSupabaseConfigured()) {
-        console.warn("Veritabanı bağlantısı yok. İlanlar görüntülenemiyor.");
-        return [];
-    }
+    if (isSupabaseConfigured()) {
+        try {
+            const { data, error } = await supabase
+                .from('swap_listings')
+                .select(`*, profiles:owner_id(full_name, avatar_url)`)
+                .order('created_at', { ascending: false });
+            
+            if (error) {
+                console.warn("Swap listings fetch error:", error);
+                return [];
+            }
 
-    try {
-        const { data, error } = await supabase
-            .from('swap_listings')
-            .select('*')
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error("İlanlar çekilirken hata:", error);
+            return (data || []).map((item: any) => ({
+                id: item.id,
+                title: item.title,
+                description: item.description,
+                requiredBalance: item.required_balance,
+                photoUrl: item.photo_url || 'https://via.placeholder.com/300',
+                location: item.location || 'İstanbul',
+                ownerId: item.owner_id,
+                ownerName: formatName(item.profiles?.full_name),
+                ownerAvatar: item.profiles?.avatar_url || 'https://picsum.photos/200',
+                createdAt: item.created_at
+            }));
+        } catch (e) {
+            console.error(e);
             return [];
         }
-
-        return data.map((item: any) => ({
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            requiredBalance: item.required_balance,
-            photoUrl: item.photo_url || 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=500&q=60',
-            location: item.location || 'İstanbul',
-            ownerId: item.owner_id,
-            ownerName: item.owner_name || 'Kullanıcı',
-            ownerAvatar: item.owner_avatar || 'https://picsum.photos/200',
-            createdAt: item.created_at
-        }));
-    } catch (e) {
-        console.error("Bilinmeyen hata:", e);
-        return [];
     }
+    
+    // Local fallback
+    try {
+      const stored = localStorage.getItem('swap_listings');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
   },
 
   getListingById: async (id: string): Promise<SwapListing | null> => {
-     if (!isSupabaseConfigured()) return null;
+    if (isSupabaseConfigured()) {
+        try {
+            const { data, error } = await supabase
+                .from('swap_listings')
+                .select(`*, profiles:owner_id(full_name, avatar_url)`)
+                .eq('id', id)
+                .single();
 
-     try {
-         const { data, error } = await supabase
-             .from('swap_listings')
-             .select('*')
-             .eq('id', id)
-             .single();
-         
-         if (error || !data) return null;
+            if (error || !data) return null;
 
-         return {
-            id: data.id,
-            title: data.title,
-            description: data.description,
-            requiredBalance: data.required_balance,
-            photoUrl: data.photo_url || 'https://images.unsplash.com/photo-1550989460-0adf9ea622e2?w=500&q=60',
-            location: data.location || 'İstanbul',
-            ownerId: data.owner_id,
-            ownerName: data.owner_name || 'Kullanıcı',
-            ownerAvatar: data.owner_avatar || 'https://picsum.photos/200',
-            createdAt: data.created_at
-         };
-     } catch (e) {
-         console.error(e);
-         return null;
-     }
+            return {
+                id: data.id,
+                title: data.title,
+                description: data.description,
+                requiredBalance: data.required_balance,
+                photoUrl: data.photo_url || 'https://via.placeholder.com/300',
+                location: data.location || 'İstanbul',
+                ownerId: data.owner_id,
+                ownerName: formatName(data.profiles?.full_name),
+                ownerAvatar: data.profiles?.avatar_url || 'https://picsum.photos/200',
+                createdAt: data.created_at
+            };
+        } catch (e) {
+            console.error(e);
+            return null;
+        }
+    }
+    
+    // Local fallback
+    try {
+        const stored = localStorage.getItem('swap_listings');
+        const listings: SwapListing[] = stored ? JSON.parse(stored) : [];
+        return listings.find(l => l.id === id) || null;
+    } catch { return null; }
   },
 
   createListing: async (title: string, description: string, price: number, photoUrl: string) => {
-    if (!isSupabaseConfigured()) {
-        throw new Error("Veritabanı bağlantısı bulunamadı.");
-    }
+      const user = ReferralService.getUserProfile();
+      
+      if (isSupabaseConfigured()) {
+          const { data: { user: authUser } } = await supabase.auth.getUser();
+          if (authUser) {
+              const { error } = await supabase.from('swap_listings').insert({
+                  title,
+                  description,
+                  required_balance: price,
+                  photo_url: photoUrl,
+                  location: user.location,
+                  owner_id: authUser.id
+              });
+              if (error) throw error;
+              return;
+          }
+      }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Oturum açmanız gerekiyor.");
-
-    let userName = user.user_metadata.full_name || 'Kullanıcı';
-    let userAvatar = user.user_metadata.avatar_url || 'https://picsum.photos/200';
-
-    // Try fetching updated profile info
-    const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-    if(profile) {
-        userName = profile.full_name;
-        userAvatar = profile.avatar_url;
-    }
-
-    const { error } = await supabase.from('swap_listings').insert({
-        owner_id: user.id,
-        title,
-        description,
-        required_balance: price,
-        photo_url: photoUrl,
-        owner_name: userName,
-        owner_avatar: userAvatar,
-        location: 'İstanbul'
-    });
-    
-    if (error) throw error;
+      // Local fallback
+      const newList: SwapListing = {
+          id: `swap-${Date.now()}`,
+          title,
+          description,
+          requiredBalance: price,
+          photoUrl,
+          location: user.location,
+          ownerId: user.id,
+          ownerName: user.name,
+          ownerAvatar: user.avatar,
+          createdAt: new Date().toISOString()
+      };
+      
+      try {
+          const stored = localStorage.getItem('swap_listings');
+          const listings: SwapListing[] = stored ? JSON.parse(stored) : [];
+          listings.unshift(newList);
+          localStorage.setItem('swap_listings', JSON.stringify(listings));
+          window.dispatchEvent(new Event('storage'));
+      } catch (e) { console.error(e); }
   },
 
   deleteListing: async (id: string) => {
       if (isSupabaseConfigured()) {
-          await supabase.from('swap_listings').delete().eq('id', id);
+          const { error } = await supabase.from('swap_listings').delete().eq('id', id);
+          if (error) throw error;
+          return;
       }
+      
+      try {
+          const stored = localStorage.getItem('swap_listings');
+          let listings: SwapListing[] = stored ? JSON.parse(stored) : [];
+          listings = listings.filter(l => l.id !== id);
+          localStorage.setItem('swap_listings', JSON.stringify(listings));
+          window.dispatchEvent(new Event('storage'));
+      } catch (e) { console.error(e); }
   },
 
   uploadImage: async (file: File): Promise<string> => {
-      if (isSupabaseConfigured()) {
+       if (isSupabaseConfigured()) {
           try {
               const fileExt = file.name.split('.').pop();
-              const fileName = `swap/${Math.random().toString(36).substring(2)}.${fileExt}`;
-              
-              const { error } = await withTimeout(
-                  supabase.storage.from('images').upload(fileName, file), 
+              const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+              const filePath = `${fileName}`;
+
+              const { error: uploadError } = await withTimeout(
+                  supabase.storage.from('images').upload(filePath, file),
                   8000
               ) as any;
-              
-              if (error) throw error;
-              
-              const { data } = supabase.storage.from('images').getPublicUrl(fileName);
-              return data.publicUrl;
-          } catch (e) {
-              console.warn("Resim yükleme hatası:", e);
-              throw new Error("Resim yüklenemedi");
+
+              if (uploadError) throw uploadError;
+
+              const { data: { publicUrl } } = supabase.storage.from('images').getPublicUrl(filePath);
+              return publicUrl;
+          } catch (error) {
+              console.warn("Supabase Storage error (swap), fallback to Base64");
+              return await fileToBase64(file);
           }
       }
-      throw new Error("Veritabanı bağlantısı yok");
+      return await fileToBase64(file);
   }
 };
