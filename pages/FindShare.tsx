@@ -115,22 +115,49 @@ export const FindShare: React.FC = () => {
   };
 
   const handleCreateRequest = async () => {
+    if (creating) return;
     setCreating(true);
+    
     try {
       let userId = 'current-user';
+      let userName = 'Ben';
 
       if (isSupabaseConfigured()) {
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) {
-             alert("Lütfen önce giriş yapın.");
-             navigate('/login');
-             return;
+          // Add timeout to getUser to prevent hanging
+          const getUserPromise = supabase.auth.getUser();
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth check timeout')), 5000));
+          
+          try {
+              const result: any = await Promise.race([getUserPromise, timeoutPromise]);
+              const user = result?.data?.user;
+
+              if (!user) {
+                 alert("Lütfen önce giriş yapın.");
+                 navigate('/login');
+                 return;
+              }
+              userId = user.id;
+              // Try to get profile name for better UX
+              const profile = ReferralService.getUserProfile();
+              if (profile && profile.id === userId) userName = formatName(profile.name);
+          } catch (e) {
+              console.warn("Auth check failed or timed out", e);
+              // Fallback to local profile check if auth API hangs but we have local session
+              const localProfile = ReferralService.getUserProfile();
+              if (localProfile.id !== 'current-user') {
+                  userId = localProfile.id;
+                  userName = formatName(localProfile.name);
+              } else {
+                  alert("Bağlantı sorunu var, lütfen tekrar giriş yapın.");
+                  navigate('/login');
+                  return;
+              }
           }
-          userId = user.id;
       } else {
           // Fallback demo user
           const profile = ReferralService.getUserProfile();
           userId = profile.id;
+          userName = formatName(profile.name);
       }
 
       const val = parseFloat(amount);
@@ -143,7 +170,6 @@ export const FindShare: React.FC = () => {
       const newTxData = await DBService.createTransactionRequest(userId, val, description);
 
       // Immediately set local state with correct mapping so UI updates instantly
-      // DBService.createTransactionRequest returns Supabase row (snake_case)
       const localTx: Transaction = {
           id: newTxData.id,
           seekerId: newTxData.seeker_id || userId,
@@ -153,7 +179,7 @@ export const FindShare: React.FC = () => {
           supportPercentage: newTxData.support_percentage || 20,
           amounts: calculateTransaction(val, 20),
           createdAt: new Date().toISOString(),
-          seekerName: 'Ben'
+          seekerName: userName
       };
 
       TransactionService.save(localTx); // Local backup
@@ -162,7 +188,7 @@ export const FindShare: React.FC = () => {
       
     } catch (error: any) {
       console.error(error);
-      alert("Talep oluşturulurken bir hata oluştu: " + (error.message || "Bilinmeyen hata"));
+      alert("Talep oluşturulurken bir hata oluştu: " + (error.message || "Bilinmeyen hata. İnternet bağlantınızı kontrol edin."));
     } finally {
       setCreating(false);
     }
@@ -184,13 +210,6 @@ export const FindShare: React.FC = () => {
             await DBService.markCashPaid(activeTransaction.id);
         } catch (e) {
             console.error("Cash Paid Update Error:", e);
-            // Don't revert state on timeout, assume it might have worked or will resolve.
-            // Just warn the user. Reverting jars the UX.
-            // If it's a permission error, we should probably revert, but distinguishing is hard with general timeout.
-            // For now, let's keep the optimistic state but show a small toast/alert if it wasn't a timeout.
-            
-            // Only revert if we are sure it failed fatally (e.g. 403)
-            // For timeouts, we let it be.
         }
     }
   };
