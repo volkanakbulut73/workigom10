@@ -4,7 +4,7 @@ import { Button } from '../components/Button';
 import { Tracker } from '../components/Tracker';
 import { QrCode, X, Crown, Heart, Utensils, ShoppingBag, ChevronLeft, Loader2, CheckCircle2, MessageCircle, ArrowRight, XCircle, Home, UploadCloud, Wallet, Info, Check, MapPin, Clock, Star, ShieldCheck, Lock, Zap, Smartphone, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { TrackerStep, Transaction, TransactionService, calculateTransaction, DBService, formatName } from '../types';
+import { TrackerStep, Transaction, TransactionService, calculateTransaction, DBService, formatName, ReferralService } from '../types';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 const FILTERS = [
@@ -162,70 +162,59 @@ export const Supporters: React.FC = () => {
 
     const percentage = selectedPercentage;
     const calc = calculateTransaction(selectedListing.amount, percentage);
+    const userProfile = ReferralService.getUserProfile();
     
-    // Mock local object for immediate UI response (Optimistic)
-    const mockTx: Transaction = {
-          id: `tx-${Date.now()}`,
-          seekerId: 'seeker-uuid',
-          supporterId: 'current-user',
+    // Optimistic Transaction
+    const optimisticTx: Transaction = {
+          id: selectedListing.id,
+          seekerId: 'unknown', 
+          supporterId: userProfile.id,
           amount: selectedListing.amount,
           listingTitle: selectedListing.description,
           status: TrackerStep.WAITING_CASH_PAYMENT,
           supportPercentage: percentage,
           createdAt: new Date().toISOString(),
           seekerName: selectedListing.name,
-          supporterName: 'Ben',
+          supporterName: userProfile.name,
           amounts: calc,
     };
 
-    try {
-        if (!isSupabaseConfigured()) {
-            TransactionService.save(mockTx);
-            setActiveTransaction(mockTx);
-            setListings(prev => prev.filter(l => l.id !== selectedListing.id));
-            setActiveTab('my-support');
-            setShowSelectionModal(false);
-            setSelectedListing(null);
-            return;
-        }
+    // Apply Optimistic Update Immediately
+    TransactionService.save(optimisticTx);
+    setActiveTransaction(optimisticTx);
+    setListings(prev => prev.filter(l => l.id !== selectedListing.id));
+    setActiveTab('my-support');
+    setShowSelectionModal(false);
+    setSelectedListing(null);
+    setIsProcessing(false); // Stop UI blocking immediately
 
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
-            navigate('/login');
-            return;
-        }
+    // Perform Background Sync
+    if (isSupabaseConfigured()) {
+        (async () => {
+            try {
+                const { data: { user } } = await supabase.auth.getUser();
+                if (!user) throw new Error("Auth failed");
 
-        const updatedTx = await DBService.acceptTransaction(selectedListing.id, user.id, percentage);
-        
-        // Re-construct proper Transaction object from DB response
-        const realTx: Transaction = {
-          id: updatedTx.id,
-          seekerId: updatedTx.seeker_id,
-          supporterId: user.id,
-          amount: updatedTx.amount,
-          listingTitle: updatedTx.listing_title,
-          status: updatedTx.status,
-          supportPercentage: updatedTx.support_percentage,
-          createdAt: updatedTx.created_at,
-          seekerName: selectedListing.name,
-          supporterName: 'Ben',
-          amounts: calculateTransaction(updatedTx.amount, updatedTx.support_percentage)
-        };
+                const updatedTx = await DBService.acceptTransaction(optimisticTx.id, user.id, percentage);
+                
+                // Construct confirmed real object
+                const realTx: Transaction = {
+                    ...optimisticTx,
+                    id: updatedTx.id,
+                    seekerId: updatedTx.seeker_id,
+                    supporterId: user.id,
+                    status: updatedTx.status
+                };
+                // Update local storage and state with real data
+                TransactionService.save(realTx);
+                setActiveTransaction(realTx);
 
-        // SAVE LOCALLY TO PREVENT TRACKER DISAPPEARANCE ON REFRESH
-        TransactionService.save(realTx);
-        setActiveTransaction(realTx);
-        setActiveTab('my-support');
-        
-        setListings(prev => prev.filter(l => l.id !== selectedListing.id));
-        setShowSelectionModal(false);
-        setSelectedListing(null);
-
-    } catch (Z: any) {
-        alert("Hata oluştu: " + (Z.message || "Bilinmiyor"));
-        try { fetchData(); } catch (e) {}
-    } finally {
-        setIsProcessing(false);
+            } catch (error: any) {
+                console.error("Background sync failed:", error);
+                alert("İşlem sunucuyla senkronize edilemedi, ancak yerel olarak devam ediliyor.");
+                // We keep optimistic state to let user retry or see status, rather than deleting it.
+            }
+        })();
     }
   };
 
@@ -266,26 +255,19 @@ export const Supporters: React.FC = () => {
     
     setIsCanceling(true);
     const txId = activeTransaction.id;
-    const previousTx = activeTransaction; 
-
-    // Optimistic Update
+    
+    // Optimistic Update: Clear immediately
     TransactionService.clearActive();
     setActiveTransaction(null);
-
-    try {
-        if (isSupabaseConfigured()) {
-            await DBService.withdrawSupport(txId);
-        }
-    } catch (e: any) {
-        console.error("Background cancel failed", e);
-        // Revert on failure
-        setActiveTransaction(previousTx);
-        TransactionService.save(previousTx);
-        alert("İşlem iptal edilemedi, lütfen tekrar deneyin.");
-    } finally {
-        // Keep cancelling state briefly to allow DB to update before next fetch check
-        setTimeout(() => setIsCanceling(false), 2000);
+    
+    // Background Sync
+    if (isSupabaseConfigured()) {
+        DBService.withdrawSupport(txId).catch(err => {
+            console.error("Background cancel failed", err);
+        });
     }
+
+    setTimeout(() => setIsCanceling(false), 1000);
   };
 
   const handleDismissTransaction = async () => {

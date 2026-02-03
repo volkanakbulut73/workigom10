@@ -116,81 +116,80 @@ export const FindShare: React.FC = () => {
 
   const handleCreateRequest = async () => {
     if (creating) return;
+    
+    const val = parseFloat(amount);
+    if (isNaN(val) || val < 50 || val > 5000) {
+       alert("Tutar 50 - 5000 TL arasında olmalıdır.");
+       return;
+    }
+
     setCreating(true);
     
     try {
+      // 1. Prepare User Data (Use local profile for optimistic UI)
       let userId = 'current-user';
       let userName = 'Ben';
-
-      if (isSupabaseConfigured()) {
-          // Add timeout to getUser to prevent hanging
-          const getUserPromise = supabase.auth.getUser();
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth check timeout')), 5000));
-          
-          try {
-              const result: any = await Promise.race([getUserPromise, timeoutPromise]);
-              const user = result?.data?.user;
-
-              if (!user) {
-                 alert("Lütfen önce giriş yapın.");
-                 navigate('/login');
-                 return;
-              }
-              userId = user.id;
-              // Try to get profile name for better UX
-              const profile = ReferralService.getUserProfile();
-              if (profile && profile.id === userId) userName = formatName(profile.name);
-          } catch (e) {
-              console.warn("Auth check failed or timed out", e);
-              // Fallback to local profile check if auth API hangs but we have local session
-              const localProfile = ReferralService.getUserProfile();
-              if (localProfile.id !== 'current-user') {
-                  userId = localProfile.id;
-                  userName = formatName(localProfile.name);
-              } else {
-                  alert("Bağlantı sorunu var, lütfen tekrar giriş yapın.");
-                  navigate('/login');
-                  return;
-              }
-          }
-      } else {
-          // Fallback demo user
-          const profile = ReferralService.getUserProfile();
-          userId = profile.id;
-          userName = formatName(profile.name);
+      const localProfile = ReferralService.getUserProfile();
+      
+      if (localProfile && localProfile.id !== 'current-user') {
+          userId = localProfile.id;
+          userName = formatName(localProfile.name);
+      } else if (isSupabaseConfigured()) {
+          // If no local profile but supbase is on, try quick fetch or just proceed
+          // We will verify in background
       }
 
-      const val = parseFloat(amount);
-      if (isNaN(val) || val < 50 || val > 5000) {
-         alert("Tutar 50 - 5000 TL arasında olmalıdır.");
-         setCreating(false);
-         return;
-      }
-
-      const newTxData = await DBService.createTransactionRequest(userId, val, description);
-
-      // Immediately set local state with correct mapping so UI updates instantly
-      const localTx: Transaction = {
-          id: newTxData.id,
-          seekerId: newTxData.seeker_id || userId,
-          amount: newTxData.amount || val,
-          listingTitle: newTxData.listing_title || description,
-          status: newTxData.status || TrackerStep.WAITING_SUPPORTER,
-          supportPercentage: newTxData.support_percentage || 20,
+      // 2. Optimistic Update: Create local transaction immediately
+      const tempId = `temp-${Date.now()}`;
+      const optimisticTx: Transaction = {
+          id: tempId,
+          seekerId: userId,
+          amount: val,
+          listingTitle: description,
+          status: TrackerStep.WAITING_SUPPORTER,
+          supportPercentage: 20,
           amounts: calculateTransaction(val, 20),
           createdAt: new Date().toISOString(),
           seekerName: userName
       };
 
-      TransactionService.save(localTx); // Local backup
-      setActiveTransaction(localTx);
+      // Apply to UI instantly
+      TransactionService.save(optimisticTx);
+      setActiveTransaction(optimisticTx);
       setDescription('');
+      setCreating(false); // Stop loading immediately as UI is ready
+
+      // 3. Background Sync
+      if (isSupabaseConfigured()) {
+          (async () => {
+              try {
+                  const { data: { user } } = await supabase.auth.getUser();
+                  if (!user) {
+                      console.warn("User not logged in during background sync");
+                      return;
+                  }
+                  
+                  const dbTx = await DBService.createTransactionRequest(user.id, val, description);
+                  
+                  // Update local transaction with real ID
+                  const realTx = { 
+                      ...optimisticTx, 
+                      id: dbTx.id, 
+                      seekerId: user.id 
+                  };
+                  setActiveTransaction(realTx);
+                  TransactionService.save(realTx);
+              } catch (bgError) {
+                  console.error("Background sync failed:", bgError);
+                  // Optionally show a toast here, but don't block the user
+              }
+          })();
+      }
       
     } catch (error: any) {
       console.error(error);
-      alert("Talep oluşturulurken bir hata oluştu: " + (error.message || "Bilinmeyen hata. İnternet bağlantınızı kontrol edin."));
-    } finally {
       setCreating(false);
+      alert("Hata: " + (error.message || "Bilinmeyen hata"));
     }
   };
 
@@ -198,11 +197,10 @@ export const FindShare: React.FC = () => {
     if (!activeTransaction) return;
     
     // 1. Optimistic Update: Update UI immediately
-    const previousState = { ...activeTransaction };
     const updated = { ...activeTransaction, status: TrackerStep.CASH_PAID };
     
     setActiveTransaction(updated);
-    TransactionService.save(updated); // Save locally so refresh works
+    TransactionService.save(updated); 
 
     // 2. Perform DB update in background
     if (isSupabaseConfigured()) {
@@ -227,7 +225,6 @@ export const FindShare: React.FC = () => {
             await DBService.completeTransaction(activeTransaction.id);
         } catch (e) {
             console.error("Complete transaction error:", e);
-            // Fail silently or show toast, but keep success state for user
         }
     }
   };
@@ -250,19 +247,17 @@ export const FindShare: React.FC = () => {
     if (!activeTransaction) return;
     if (!window.confirm("İşlemi iptal etmek istediğinize emin misiniz?")) return;
 
-    setLoading(true);
-    try {
-        if (isSupabaseConfigured()) {
-            await DBService.cancelTransaction(activeTransaction.id);
-        }
-        setActiveTransaction(null);
-        TransactionService.clearActive();
-        navigate('/app'); 
-    } catch (e: any) {
-        console.error("Cancel failed", e);
-        alert("İşlem iptal edilirken bir hata oluştu: " + (e.message || "Bilinmeyen Hata"));
-    } finally {
-        setLoading(false);
+    // Optimistic Update: Clear immediately
+    const txId = activeTransaction.id;
+    setActiveTransaction(null);
+    TransactionService.clearActive();
+    navigate('/app'); 
+
+    // Background Sync
+    if (isSupabaseConfigured()) {
+        DBService.cancelTransaction(txId).catch(err => {
+            console.error("Background cancel failed", err);
+        });
     }
   };
 
