@@ -66,8 +66,13 @@ export const Profile: React.FC = () => {
             return;
         }
         setSelectedFile(file);
-        const objectUrl = URL.createObjectURL(file);
-        setPreviewAvatar(objectUrl);
+        
+        // Use FileReader instead of createObjectURL to avoid blob permission issues
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            setPreviewAvatar(reader.result as string);
+        };
+        reader.readAsDataURL(file);
     }
   };
 

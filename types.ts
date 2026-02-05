@@ -496,8 +496,17 @@ export const DBService = {
 
   cancelTransaction: async (txId: string) => {
       if (isSupabaseConfigured() && isUUID(txId)) {
-          const { error } = await supabase.from('transactions').delete().eq('id', txId);
-          if (error) throw error;
+          // Attempt soft delete first (update status to cancelled) to handle strict RLS policies
+          const { error } = await supabase.from('transactions')
+            .update({ status: 'cancelled' })
+            .eq('id', txId);
+          
+          if (error) {
+              console.warn("Soft cancel failed, attempting hard delete...", error);
+              // Fallback to delete if needed
+              const { error: delError } = await supabase.from('transactions').delete().eq('id', txId);
+              if (delError) throw delError;
+          }
       }
   },
 
@@ -548,6 +557,7 @@ export const DBService = {
         const updates: any = {};
         if (data.name) updates.full_name = data.name;
         if (data.iban !== undefined) updates.iban = data.iban;
+        if (data.avatar) updates.avatar_url = data.avatar;
         await supabase.from('profiles').update(updates).eq('id', id);
     }
     const current = ReferralService.getUserProfile();
